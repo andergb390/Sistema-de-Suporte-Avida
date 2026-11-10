@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Suporte de Vida Cardíaco</title>
+<style>
+:root{--bg:#e4e9ec;--panel:#f7f9fa;--ink:#16303b;--mute:#5d7480;--line:#bccad1;--crit:#c23b3b;--ok:#2e8b6b;--warn:#c27a1f;--acc:#1f6fa8;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#0e1b22;--panel:#162832;--ink:#e3eef2;--mute:#8fa8b3;--line:#2b4351;--crit:#ef6b6b;--ok:#4cc29b;--warn:#e0a04e;--acc:#5aaee6}}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#0e1b22;--panel:#162832;--ink:#e3eef2;--mute:#8fa8b3;--line:#2b4351;--crit:#ef6b6b;--ok:#4cc29b;--warn:#e0a04e;--acc:#5aaee6}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 "Barlow","Segoe UI",system-ui,sans-serif}
+main{max-width:980px;margin:0 auto;padding:16px 14px 40px}
+h1{font-size:1.5rem;margin:0 0 4px}
+.note{color:var(--mute);font-size:.88rem;margin:0 0 12px}
+.monitor{background:#07181d;border-radius:12px;padding:12px;color:#d9f5ea;margin-bottom:12px}
+.vitals{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:8px}
+.v small{display:block;color:#8cb3a8;font-size:.8rem}
+.v b{font-size:2rem;font-variant-numeric:tabular-nums;line-height:1.1}
+.v.hr b{color:#5df2a2}.v.sp b{color:#6cc8ff}.v.bp b{color:#ffd166}.v.ar b{color:#ff8a8a}
+canvas{width:100%;height:200px;display:block;background:#0a2128;border-radius:8px}
+.banner{margin-top:8px;padding:6px 10px;border-radius:6px;font-weight:600;background:#14463a;color:#bff5df}
+.banner.crit{background:#7a1f1f;color:#ffdede;animation:p 1s infinite}
+.banner.warn{background:#6b4a12;color:#ffe9b8}
+@keyframes p{50%{opacity:.65}}
+@media (prefers-reduced-motion:reduce){.banner.crit{animation:none}}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}
+h2{font-size:1rem;margin:0 0 10px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px}
+button,select{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 12px;cursor:pointer}
+button:hover:not(:disabled){border-color:var(--acc)}
+button:disabled{opacity:.5;cursor:not-allowed}
+button:focus-visible,select:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+button.on{background:var(--ok);color:#fff;border-color:var(--ok)}
+button.shock{background:var(--crit);color:#fff;border-color:var(--crit)}
+#log{list-style:none;margin:0;padding:0;max-height:210px;overflow-y:auto;font-size:.9rem}
+#log li{padding:5px 0;border-bottom:1px solid var(--line)}
+#log time{color:var(--mute);margin-right:8px;font-variant-numeric:tabular-nums}
+.c{color:var(--crit)}.w{color:var(--warn)}.o{color:var(--ok)}
+</style>
+</head>
+<body>
+<main>
+<h1>Suporte de vida cardíaco</h1>
+<p class="note">Simulação educativa de monitor, desfibrilador e RCP. Não serve para uso clínico.</p>
+
+<div class="monitor">
+ <div class="vitals">
+  <div class="v hr"><small>Freq. cardíaca (bpm)</small><b id="hr">75</b></div>
+  <div class="v sp"><small>SpO₂ (%)</small><b id="sp">98</b></div>
+  <div class="v bp"><small>Pressão (mmHg)</small><b id="bp">120/80</b></div>
+  <div class="v ar"><small>Tempo de parada</small><b id="ar">00:00</b></div>
+ </div>
+ <canvas id="ecg" aria-label="Eletrocardiograma em tempo real"></canvas>
+ <div id="banner" class="banner" role="status" aria-live="polite">Ritmo sinusal normal</div>
+</div>
+
+<div class="grid">
+ <section class="panel">
+  <h2>Ritmo do paciente</h2>
+  <div class="row"><label>Induzir ritmo <select id="rhythm">
+   <option value="sinus">Sinusal normal</option>
+   <option value="tachy">Taquicardia</option>
+   <option value="brady">Bradicardia</option>
+   <option value="vf">Fibrilação ventricular</option>
+   <option value="asys">Assistolia</option>
+  </select></label></div>
+  <div class="row">
+   <button id="cpr">RCP (compressões)</button>
+   <button id="pace">Marcapasso externo</button>
+   <button id="epi">Adrenalina 1 mg</button>
+  </div>
+  <p class="note" id="epiN">Doses de adrenalina: 0</p>
+ </section>
+ <section class="panel">
+  <h2>Desfibrilador</h2>
+  <div class="row"><label>Energia <select id="joule"><option>150</option><option>200</option><option>360</option></select> J</label></div>
+  <div class="row">
+   <button id="charge">Carregar</button>
+   <button id="shock" class="shock" disabled>Choque</button>
+  </div>
+  <p class="note" id="dfN">Desfibrilador descarregado.</p>
+ </section>
+ <section class="panel" style="grid-column:1/-1">
+  <h2>Registro</h2>
+  <ul id="log"></ul>
+  <div class="row" style="margin-top:10px"><button id="reset">Reiniciar paciente</button></div>
+ </section>
+</div>
+</main>
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+const FS=150,N=600;
+let rhythm,cpr,pace,epi,charged,charging,t0,arrest,vit,buf,head,beatT,rr,clock,simT,last,chargeTimer,shockBoost;
+const cv=$("ecg"),ctx=cv.getContext("2d");
+function fit(){const r=devicePixelRatio||1;cv.width=cv.clientWidth*r;cv.height=cv.clientHeight*r;ctx.setTransform(r,0,0,r,0,0)}
+addEventListener("resize",fit);
+
+function fmt(s){s=Math.floor(s);return String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0")}
+function log(m,c){const li=document.createElement("li");li.innerHTML="<time>"+fmt(simT)+"</time><span class='"+(c||"")+"'></span>";li.lastChild.textContent=m;$("log").prepend(li);while($("log").children.length>60)$("log").lastChild.remove()}
+const NAMES={sinus:"Ritmo sinusal normal",tachy:"Taquicardia sinusal",brady:"Bradicardia",vf:"Fibrilação ventricular: parada cardíaca, ritmo chocável",asys:"Assistolia: parada cardíaca, ritmo não chocável"};
+function hrTarget(){
+ if(rhythm==="sinus")return 75;if(rhythm==="tachy")return 130;
+ if(rhythm==="brady")return pace?70:45;return 0}
+function setRhythm(r,why){
+ rhythm=r;$("rhythm").value=r;
+ if(r==="vf"||r==="asys"){if(!arrest)arrest=simT}else arrest=null;
+ if(r==="sinus"||r==="tachy")pace=false,$("pace").classList.remove("on");
+ log(NAMES[r]+(why?" ("+why+")":""),(r==="vf"||r==="asys")?"c":(r==="sinus"?"o":"w"));
+ const b=$("banner");b.textContent=NAMES[r];
+ b.className="banner"+((r==="vf"||r==="asys")?" crit":(r==="sinus"?"":" warn"));
+}
+function init(){
+ simT=0;rhythm="sinus";cpr=false;pace=false;epi=0;charged=false;charging=false;arrest=null;shockBoost=0;
+ vit={hr:75,sp:98,sys:120,dia:80};buf=new Float32Array(N);head=0;beatT=0;rr=.8;clock=0;last=performance.now();
+ clearTimeout(chargeTimer);
+ $("log").innerHTML="";["cpr","pace"].forEach(i=>$(i).classList.remove("on"));
+ $("rhythm").value="sinus";$("epiN").textContent="Doses de adrenalina: 0";$("charge").disabled=false;$("shock").disabled=true;
+ $("dfN").textContent="Desfibrilador descarregado.";$("banner").className="banner";$("banner").textContent=NAMES.sinus;
+ log("Paciente monitorado. Ritmo sinusal normal.","o");
+}
+const g=(t,m,s,a)=>a*Math.exp(-((t-m)*(t-m))/(2*s*s));
+function sample(dt){
+ clock+=dt;let v=0;
+ const hr=hrTarget();
+ if(hr>0){
+  beatT+=dt;
+  if(beatT>=rr){beatT-=rr;rr=60/hr*(1+(Math.random()-.5)*(rhythm==="sinus"?.04:.01))}
+  const k=Math.min(1,rr/.8),ts=beatT/k;
+  const paced=pace&&rhythm==="brady";
+  v=(paced?0:g(ts,.08,.025,.14))+g(ts,.17,.011,-.14)+g(ts,.2,paced?.02:.012,1)+g(ts,.23,.012,-.25)+g(ts,.42,.05,.3);
+  if(paced)v+=g(ts,.15,.003,.9);
+ }else if(rhythm==="vf"){
+  v=.45*Math.sin(clock*2*Math.PI*4.3)+.3*Math.sin(clock*2*Math.PI*7.1+1)+.1*(Math.random()-.5);
+  v*=Math.max(.35,1-(simT-arrest)/400);
+ }else v=.02*(Math.random()-.5);
+ if(cpr){const p=(clock*110/60)%1;v+=.55*Math.pow(Math.sin(Math.PI*p),2)-.1}
+ v+=.012*(Math.random()-.5);
+ return v;
+}
+function vitalsTick(){
+ let tg;
+ if(rhythm==="sinus")tg={hr:75,sp:98,sys:120,dia:80};
+ else if(rhythm==="tachy")tg={hr:130,sp:95,sys:100,dia:65};
+ else if(rhythm==="brady")tg=pace?{hr:70,sp:96,sys:105,dia:68}:{hr:45,sp:93,sys:85,dia:50};
+ else tg=cpr?{hr:0,sp:70,sys:70,dia:25}:{hr:0,sp:0,sys:0,dia:0};
+ const a=(rhythm==="vf"||rhythm==="asys")?(cpr?.08:.04):.2;
+ for(const k in vit)vit[k]+=(tg[k]-vit[k])*a;
+ $("hr").textContent=vit.hr<2?(rhythm==="vf"?"FV":"--"):Math.round(vit.hr);
+ $("sp").textContent=Math.max(0,Math.round(vit.sp));
+ $("bp").textContent=Math.round(vit.sys)+"/"+Math.round(vit.dia);
+ $("ar").textContent=arrest!=null?fmt(simT-arrest):"00:00";
+ // retorno espontâneo (assistolia/FV com RCP + adrenalina)
+ if(arrest!=null&&cpr&&epi>0&&Math.random()<(rhythm==="asys"?.015:.02)){setRhythm("brady","retorno espontâneo da circulação");}
+ if(arrest!=null&&simT-arrest>600&&!$("ar").dataset.w){$("ar").dataset.w=1;log("10 minutos de parada: prognóstico muito reservado.","c")}
+ if(arrest==null)delete $("ar").dataset.w;
+}
+function draw(){
+ const w=cv.clientWidth,h=cv.clientHeight;ctx.clearRect(0,0,w,h);
+ ctx.strokeStyle="rgba(120,220,180,.12)";ctx.lineWidth=1;
+ for(let x=0;x<w;x+=w/20){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke()}
+ for(let y=0;y<h;y+=h/8){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke()}
+ ctx.strokeStyle="#5df2a2";ctx.lineWidth=2;ctx.lineJoin="round";ctx.beginPath();
+ let pen=false;
+ for(let i=0;i<N;i++){
+  const d=(i-head+N)%N;if(d<14){pen=false;continue}
+  const x=i/(N-1)*w,y=h*.62-buf[i]*h*.42;
+  if(!pen){ctx.moveTo(x,y);pen=true}else ctx.lineTo(x,y);
+ }
+ ctx.stroke();
+}
+function frame(now){
+ const dt=Math.min(.1,(now-last)/1000);last=now;
+ simT+=dt;
+ let steps=Math.round(dt*FS);
+ for(let i=0;i<steps;i++){buf[head]=sample(1/FS);head=(head+1)%N}
+ draw();requestAnimationFrame(frame);
+}
+setInterval(vitalsTick,500);
+
+$("rhythm").addEventListener("change",e=>setRhythm(e.target.value,"induzido"));
+$("cpr").addEventListener("click",e=>{cpr=!cpr;e.target.classList.toggle("on",cpr);log(cpr?"RCP iniciada: 100 a 120 compressões por minuto.":"RCP interrompida.",cpr?"o":"w")});
+$("pace").addEventListener("click",e=>{
+ if(rhythm!=="brady"&&!pace){log("Marcapasso só ajuda em bradicardia.","w");return}
+ pace=!pace;e.target.classList.toggle("on",pace);log(pace?"Marcapasso externo ligado a 70 bpm.":"Marcapasso desligado.",pace?"o":"w")});
+$("epi").addEventListener("click",()=>{
+ epi++;$("epiN").textContent="Doses de adrenalina: "+epi;shockBoost=.15;
+ log("Adrenalina 1 mg administrada (dose "+epi+").","o");
+ if(rhythm==="tachy"){vit.hr=Math.min(170,vit.hr+10)}
+});
+$("charge").addEventListener("click",()=>{
+ if(charging||charged)return;charging=true;$("charge").disabled=true;
+ $("dfN").textContent="Carregando "+$("joule").value+" J…";
+ chargeTimer=setTimeout(()=>{charging=false;charged=true;$("shock").disabled=false;$("dfN").textContent=$("joule").value+" J carregados. Afaste todos e aplique o choque.";log("Desfibrilador carregado: "+$("joule").value+" J.")},1800);
+});
+$("shock").addEventListener("click",()=>{
+ if(!charged)return;const j=+$("joule").value;
+ charged=false;$("shock").disabled=true;$("charge").disabled=false;$("dfN").textContent="Choque aplicado. Desfibrilador descarregado.";
+ log("Choque de "+j+" J aplicado.","w");
+ if(rhythm==="vf"){
+  const p={150:.35,200:.5,360:.65}[j]+shockBoost;
+  if(Math.random()<p)setRhythm("sinus","choque eficaz");
+  else log("Sem conversão. Retome a RCP e reavalie o ritmo.","c");
+ }else if(rhythm==="asys"){log("Assistolia não é chocável. Continue RCP e adrenalina.","w")}
+ else if(rhythm==="sinus"||rhythm==="tachy"){
+  if(Math.random()<.3)setRhythm("vf","choque em ritmo não chocável");
+  else log("Choque sem indicação em ritmo com pulso.","w");
+ }else log("Choque sem efeito em bradicardia.","w");
+ shockBoost=0;
+});
+$("reset").addEventListener("click",init);
+fit();init();requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
